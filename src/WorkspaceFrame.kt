@@ -222,7 +222,6 @@ class WorkspaceFrame(
         val row = JPanel(BorderLayout(12, 0)).apply {
             background = Theme.surface
             border = EmptyBorder(10, 4, 10, 4)
-            maximumSize = Dimension(Int.MAX_VALUE, preferredSize.height)
             alignmentX = LEFT_ALIGNMENT
         }
 
@@ -277,6 +276,8 @@ class WorkspaceFrame(
         row.add(leading, BorderLayout.WEST)
         row.add(text, BorderLayout.CENTER)
         row.add(actions, BorderLayout.EAST)
+        // Measure only after children exist; a height taken from an empty panel collapses the row to 0px.
+        row.maximumSize = Dimension(Int.MAX_VALUE, row.preferredSize.height)
         return row
     }
 
