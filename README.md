@@ -65,14 +65,15 @@ kotlinc -version
 For example:
 
 ```text
-~/Mobile1XWorkspace/
-    Mobile1XWorkspace.kt
+~/Desktop/workspace/
+    src/
+    config/
 ```
 
 Open Terminal and go there:
 
 ```bash
-cd ~/Mobile1XWorkspace
+cd ~/Desktop/workspace
 ```
 
 ## 4. Compile the application
@@ -80,13 +81,13 @@ cd ~/Mobile1XWorkspace
 Run:
 
 ```bash
-kotlinc Mobile1XWorkspace.kt -include-runtime -d Mobile1XWorkspace.jar
+kotlinc src -include-runtime -d Workspace.jar
 ```
 
 This creates:
 
 ```text
-Mobile1XWorkspace.jar
+Workspace.jar
 ```
 
 ## 5. Run it
@@ -244,7 +245,7 @@ The profile directory is:
 Profile 3
 ```
 
-Put that value into the application configuration.
+The **Chrome profile** dropdown in the main window lists every profile Chrome knows about, read from Chrome's own `Local State` file (`~/Library/Application Support/Google/Chrome/Local State`). Pick one and it is saved to the config.
 
 Do not copy passwords or cookies into the application.
 
@@ -281,6 +282,14 @@ For better security:
 ---
 
 # Saving configuration
+
+All workspace data is loaded from a single config file, not from the code:
+
+```text
+~/Library/Application Support/Mobile1XWorkspace/workspace.properties
+```
+
+To start from scratch, copy `config/workspace.properties.example` to that path. The app reads and rewrites the file as you change items, the profile, or startup settings.
 
 The application stores workspace configuration locally.
 

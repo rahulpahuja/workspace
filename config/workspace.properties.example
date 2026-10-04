@@ -1,0 +1,29 @@
+# Copy to ~/Library/Application Support/Mobile1XWorkspace/workspace.properties
+# The app reads and writes this file; edit it here or from the UI.
+launchAtLogin=false
+chrome.profile=Default
+chrome.appName=Google Chrome
+item.0.name=Firebase
+item.0.type=url
+item.0.target=https://console.firebase.google.com/
+item.0.enabled=true
+item.1.name=Google Analytics
+item.1.type=url
+item.1.target=https://analytics.google.com/
+item.1.enabled=true
+item.2.name=Amplitude
+item.2.type=url
+item.2.target=https://app.amplitude.com/
+item.2.enabled=true
+item.3.name=ChatGPT
+item.3.type=url
+item.3.target=https://chatgpt.com/
+item.3.enabled=true
+item.4.name=Claude
+item.4.type=url
+item.4.target=https://claude.ai/
+item.4.enabled=true
+item.5.name=Mobile1X GitHub
+item.5.type=url
+item.5.target=https://github.com/Mobile1X
+item.5.enabled=true
