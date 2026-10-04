@@ -1,11 +1,12 @@
 import java.awt.BorderLayout
-import java.awt.Color
 import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.GridLayout
 import java.io.File
 import javax.swing.*
+import javax.swing.border.CompoundBorder
 import javax.swing.border.EmptyBorder
+import javax.swing.border.MatteBorder
 
 class WorkspaceFrame(
     private val config: WorkspaceConfig,
@@ -17,16 +18,20 @@ class WorkspaceFrame(
 ) : JFrame("Mobile1X Workspace") {
 
     private val listPanel = JPanel()
-    private val startupBox = JCheckBox("Launch workspace at Mac login")
+    private val summary = JLabel()
+    private val startupBox = JCheckBox("Open at Mac login")
     private val profileBox = JComboBox<ChromeProfile>()
-    private val status = JLabel("● Ready")
+    private val status = JLabel("Ready")
+    private val launchButton = JButton()
+    private val stopButton = JButton("Stop")
 
     init {
         defaultCloseOperation = EXIT_ON_CLOSE
         minimumSize = Dimension(720, 620)
+        setSize(760, 680)
         setLocationRelativeTo(null)
 
-        val root = JPanel(BorderLayout(12, 12)).apply { border = EmptyBorder(16, 16, 16, 16) }
+        val root = JPanel(BorderLayout()).apply { background = Theme.paper }
         contentPane = root
         root.add(header(), BorderLayout.NORTH)
         root.add(buildCenter(), BorderLayout.CENTER)
@@ -47,74 +52,122 @@ class WorkspaceFrame(
     fun launchWorkspace() {
         save()
         val enabled = config.items.filter { it.enabled }
-        status.text = "● Launching ${enabled.size} items..."
+        status.text = "Opening ${enabled.size} item(s)…"
 
         enabled.filter { it.type == "app" }.forEach { launcher.openApp(it.target) }
 
         val profile = selectedProfile()?.directory ?: config.chromeProfile
         launcher.openUrls(enabled.filter { it.type == "url" }.map { it.target }, profile)
 
-        status.text = "● Workspace launched"
+        status.text = "Opened ${enabled.size} item(s) in ${profileName()}"
     }
 
     private fun stopWorkspace() {
         // Deliberately only stops apps configured in this workspace.
-        config.items.filter { it.enabled && it.type == "app" }.forEach { launcher.quitApp(it.target) }
-        status.text = "● Workspace apps stopped"
+        val apps = config.items.filter { it.enabled && it.type == "app" }
+        apps.forEach { launcher.quitApp(it.target) }
+        status.text = "Quit ${apps.size} app(s). Chrome windows stay open."
     }
 
     private fun header(): JPanel {
-        val p = JPanel(BorderLayout())
-        p.add(
-            JLabel(
-                "<html><b><font size='5'>Mobile1X Workspace</font></b><br>" +
-                        "<font color='#666666'>Your configurable Mac work environment</font></html>"
-            ),
-            BorderLayout.WEST
-        )
-        val settings = JButton("⚙ Settings")
-        settings.addActionListener { settingsDialog() }
-        p.add(settings, BorderLayout.EAST)
-        return p
+        val title = JLabel("Workspace").apply { font = Theme.display; foreground = Theme.ink }
+        summary.font = Theme.body
+        summary.foreground = Theme.muted
+
+        val text = JPanel(BorderLayout()).apply {
+            isOpaque = false
+            add(title, BorderLayout.NORTH)
+            add(summary, BorderLayout.SOUTH)
+        }
+
+        val settings = secondaryButton("Settings") { settingsDialog() }
+
+        return JPanel(BorderLayout()).apply {
+            background = Theme.surface
+            border = CompoundBorder(
+                MatteBorder(0, 0, 1, 0, Theme.rule),
+                EmptyBorder(16, 20, 16, 20)
+            )
+            add(text, BorderLayout.CENTER)
+            add(settings, BorderLayout.EAST)
+        }
     }
 
     private fun buildCenter(): JPanel {
-        val wrapper = JPanel(BorderLayout(8, 8))
+        val wrapper = JPanel(BorderLayout()).apply { background = Theme.paper }
 
-        val top = JPanel(BorderLayout())
-        top.add(JLabel("<html><b>MY WORKSPACE</b></html>"), BorderLayout.WEST)
-        val add = JButton("+ Add")
-        add.addActionListener { addItemDialog() }
-        top.add(add, BorderLayout.EAST)
+        val sectionLabel = JLabel("ITEMS").apply {
+            font = Theme.caption
+            foreground = Theme.muted
+        }
+        val add = secondaryButton("Add item") { addItemDialog() }
+        val top = JPanel(BorderLayout()).apply {
+            isOpaque = false
+            border = EmptyBorder(14, 20, 8, 20)
+            add(sectionLabel, BorderLayout.WEST)
+            add(add, BorderLayout.EAST)
+        }
         wrapper.add(top, BorderLayout.NORTH)
 
+        // Rows stack inside a top-anchored container so the scroll viewport always gets a real height.
+        val rowsHost = JPanel(BorderLayout()).apply {
+            background = Theme.surface
+            add(listPanel, BorderLayout.NORTH)
+        }
         listPanel.layout = BoxLayout(listPanel, BoxLayout.Y_AXIS)
-        val scroll = JScrollPane(listPanel)
-        scroll.border = BorderFactory.createLineBorder(Color(220, 220, 220))
+        listPanel.background = Theme.surface
+        val scroll = JScrollPane(rowsHost).apply {
+            verticalScrollBarPolicy = ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS
+            horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
+            verticalScrollBar.unitIncrement = 16
+            verticalScrollBar.blockIncrement = 96
+            border = MatteBorder(1, 0, 1, 0, Theme.rule)
+            viewport.background = Theme.surface
+        }
         wrapper.add(scroll, BorderLayout.CENTER)
+        // Side gutters keep the board from touching the window edge.
+        wrapper.border = EmptyBorder(0, 20, 0, 20)
         return wrapper
     }
 
     private fun buildFooter(): JPanel {
-        val outer = JPanel(BorderLayout(8, 8))
+        launchButton.putClientProperty("JButton.buttonType", "default")
+        launchButton.font = Theme.heading
+        launchButton.addActionListener { launchWorkspace() }
+        stopButton.addActionListener { stopWorkspace() }
 
-        val controls = JPanel(GridLayout(1, 2, 8, 8))
-        controls.add(JButton("🚀 Launch Workspace").apply { addActionListener { launchWorkspace() } })
-        controls.add(JButton("■ Stop Workspace").apply { addActionListener { stopWorkspace() } })
-
-        val options = JPanel(FlowLayout(FlowLayout.LEFT, 8, 0))
-        options.add(startupBox)
-        options.add(JLabel("Chrome profile:"))
-        options.add(profileBox)
+        val options = JPanel(FlowLayout(FlowLayout.LEFT, 12, 0)).apply {
+            isOpaque = false
+            add(startupBox)
+            add(JLabel("Chrome profile").apply { font = Theme.caption; foreground = Theme.muted })
+            add(profileBox)
+        }
         profileBox.addActionListener {
             selectedProfile()?.let { config.chromeProfile = it.directory }
             save()
+            updateSummary()
         }
 
-        outer.add(options, BorderLayout.NORTH)
-        outer.add(controls, BorderLayout.CENTER)
-        outer.add(status, BorderLayout.SOUTH)
-        return outer
+        val actions = JPanel(BorderLayout(8, 0)).apply {
+            isOpaque = false
+            add(stopButton, BorderLayout.WEST)
+            add(launchButton, BorderLayout.CENTER)
+        }
+
+        status.font = Theme.mono
+        status.foreground = Theme.muted
+
+        val body = JPanel(BorderLayout(0, 10)).apply {
+            background = Theme.surface
+            border = CompoundBorder(
+                MatteBorder(1, 0, 0, 0, Theme.rule),
+                EmptyBorder(14, 20, 14, 20)
+            )
+            add(options, BorderLayout.NORTH)
+            add(actions, BorderLayout.CENTER)
+            add(status, BorderLayout.SOUTH)
+        }
+        return body
     }
 
     private fun loadProfiles() {
@@ -138,55 +191,129 @@ class WorkspaceFrame(
 
     private fun selectedProfile(): ChromeProfile? = profileBox.selectedItem as? ChromeProfile
 
+    private fun profileName(): String = selectedProfile()?.displayName ?: config.chromeProfile
+
     private fun rebuildList() {
         listPanel.removeAll()
 
-        config.items.forEachIndexed { index, item ->
-            val row = JPanel(BorderLayout(8, 4)).apply {
-                border = EmptyBorder(7, 8, 7, 8)
-                maximumSize = Dimension(Int.MAX_VALUE, 58)
-            }
-
-            val enabled = JCheckBox().apply {
-                isSelected = item.enabled
-                addActionListener {
-                    item.enabled = isSelected
-                    save()
-                }
-            }
-
-            val icon = if (item.type == "app") "▣" else "◎"
-            val info = JLabel(
-                "<html><b>$icon ${escape(item.name)}</b><br>" +
-                        "<font color='#777777'>${escape(item.target)}</font></html>"
-            )
-
-            val actions = JPanel(FlowLayout(FlowLayout.RIGHT, 4, 0))
-            actions.add(JButton("↑").apply {
-                addActionListener { moveItem(index, index - 1) }
-            })
-            actions.add(JButton("↓").apply {
-                addActionListener { moveItem(index, index + 1) }
-            })
-            actions.add(JButton("Edit").apply { addActionListener { editItemDialog(index) } })
-            actions.add(JButton("×").apply {
-                addActionListener {
-                    config.items.removeAt(index)
-                    save()
-                    rebuildList()
-                }
-            })
-
-            row.add(enabled, BorderLayout.WEST)
-            row.add(info, BorderLayout.CENTER)
-            row.add(actions, BorderLayout.EAST)
-            listPanel.add(row)
-            listPanel.add(JSeparator())
+        if (config.items.isEmpty()) {
+            listPanel.add(emptyState())
         }
 
+        config.items.forEachIndexed { index, item ->
+            listPanel.add(itemRow(index, item))
+            listPanel.add(JSeparator().apply { foreground = Theme.rule; background = Theme.rule })
+        }
+
+        updateControlState()
         listPanel.revalidate()
         listPanel.repaint()
     }
+
+    private fun emptyState(): JComponent = JLabel(
+        "<html><div style='width:360px;padding:28px 0;color:#6B7585'>" +
+                "Nothing on the board yet.<br>Add a website or a Mac app to start your workspace.</div></html>"
+    ).apply {
+        font = Theme.body
+        alignmentX = LEFT_ALIGNMENT
+    }
+
+    private fun itemRow(index: Int, item: WorkspaceItem): JPanel {
+        val row = JPanel(BorderLayout(12, 0)).apply {
+            background = Theme.surface
+            border = EmptyBorder(10, 4, 10, 4)
+            maximumSize = Dimension(Int.MAX_VALUE, preferredSize.height)
+            alignmentX = LEFT_ALIGNMENT
+        }
+
+        val enabled = JCheckBox().apply {
+            isSelected = item.enabled
+            background = Theme.surface
+            toolTipText = if (item.enabled) "Turn off for launch" else "Turn on for launch"
+            accessibleContext.accessibleName = "Include ${item.name} in launch"
+            addActionListener {
+                item.enabled = isSelected
+                save()
+                rebuildList()
+            }
+        }
+
+        val name = JLabel(item.name).apply {
+            font = Theme.heading
+            foreground = if (item.enabled) Theme.ink else Theme.muted
+        }
+        val target = JLabel(item.target).apply {
+            font = Theme.mono
+            foreground = Theme.muted
+        }
+        val text = JPanel(GridLayout(2, 1)).apply {
+            isOpaque = false
+            add(name)
+            add(target)
+        }
+
+        val badge = JLabel(if (item.type == "app") "APP" else "WEB").apply {
+            font = Theme.caption
+            foreground = java.awt.Color.WHITE
+            background = if (item.type == "app") Theme.appBadge else Theme.webBadge
+            border = EmptyBorder(3, 7, 3, 7)
+            isOpaque = true
+        }
+
+        val actions = JPanel(FlowLayout(FlowLayout.RIGHT, 2, 0)).apply {
+            isOpaque = false
+            add(iconButton("Move up", "↑", index > 0) { moveItem(index, index - 1) })
+            add(iconButton("Move down", "↓", index < config.items.lastIndex) { moveItem(index, index + 1) })
+            add(textButton("Edit") { editItemDialog(index) })
+            add(iconButton("Remove", "×", true) { confirmRemove(index) })
+        }
+
+        val leading = JPanel(FlowLayout(FlowLayout.LEFT, 10, 0)).apply {
+            isOpaque = false
+            add(enabled)
+            add(badge)
+        }
+
+        row.add(leading, BorderLayout.WEST)
+        row.add(text, BorderLayout.CENTER)
+        row.add(actions, BorderLayout.EAST)
+        return row
+    }
+
+    private fun secondaryButton(label: String, action: () -> Unit) = JButton(label).apply {
+        font = Theme.body
+        addActionListener { action() }
+    }
+
+    private fun textButton(label: String, action: () -> Unit) = JButton(label).apply {
+        putClientProperty("JButton.buttonType", "borderless")
+        font = Theme.body
+        addActionListener { action() }
+    }
+
+    private fun iconButton(name: String, glyph: String, enabledState: Boolean, action: () -> Unit) =
+        JButton(glyph).apply {
+            putClientProperty("JButton.buttonType", "borderless")
+            toolTipText = name
+            accessibleContext.accessibleName = name
+            isEnabled = enabledState
+            addActionListener { action() }
+        }
+
+    /** Launch needs at least one enabled item; stop only makes sense when apps are enabled. */
+    private fun updateControlState() {
+        val total = config.items.size
+        val lit = config.items.count { it.enabled }
+        launchButton.isEnabled = lit > 0
+        launchButton.text = if (lit == 1) "Launch 1 item" else "Launch $lit items"
+        stopButton.isEnabled = config.items.any { it.enabled && it.type == "app" }
+        summary.text = when {
+            total == 0 -> "No items yet"
+            else -> "$lit of $total items open in ${profileName()}"
+        }
+    }
+
+    private fun updateSummary() = updateControlState()
 
     private fun moveItem(from: Int, to: Int) {
         if (to !in config.items.indices) return
@@ -194,6 +321,22 @@ class WorkspaceFrame(
         config.items.add(to, item)
         save()
         rebuildList()
+    }
+
+    private fun confirmRemove(index: Int) {
+        val item = config.items[index]
+        val choice = JOptionPane.showConfirmDialog(
+            this,
+            "Remove \"${item.name}\" from the workspace?\nThe app or website itself is not affected.",
+            "Remove item",
+            JOptionPane.OK_CANCEL_OPTION,
+            JOptionPane.WARNING_MESSAGE
+        )
+        if (choice != JOptionPane.OK_OPTION) return
+        config.items.removeAt(index)
+        save()
+        rebuildList()
+        status.text = "Removed \"${item.name}\""
     }
 
     private fun addItemDialog() {
@@ -261,7 +404,4 @@ class WorkspaceFrame(
 
     private fun deriveName(url: String): String =
         runCatching { java.net.URI(url).host?.removePrefix("www.") ?: url }.getOrDefault(url)
-
-    private fun escape(s: String): String =
-        s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 }
